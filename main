@@ -1,0 +1,82 @@
+##GO analysis
+databirt <- function(res,
+                     fromtype,##keytypes(org.Hs.eg.db)
+                     totype='ENTREZID',
+                     org=org.Mm.eg.db##c(org.Hs.eg.db,org.Mm.eg.db,org.Rn.eg.db)
+                     ){ 
+  library(org.Hs.eg.db)
+  library(org.Mm.eg.db)
+  library(org.Rn.eg.db)
+  gene.df <- bitr(res$gene,
+                  fromType = fromtype,
+                  toType = totype,
+                  OrgDb = org)
+  a=grep('gene',colnames(res))
+  colnames(res)[a]=fromtype
+  data2=merge(res,gene.df,by.y=fromtype)
+  geneList<-data2$log2FoldChange
+  names(geneList)=data2$ENTREZID
+  geneList=sort(geneList,decreasing = T)
+  geneList2=split(data2$ENTREZID,data2$Change)
+  return(geneList)
+  return(geneList2)
+}
+
+
+gokegg <- function(geneList,
+                   org=org.Hs.eg.db,##c(org.Hs.eg.db,org.Mm.eg.db,org.Rn.eg.db)
+                   orgkegg='hsa',##c('hsa','mmu','rno')
+                   ont='ALL',
+                   method='GSEA',
+                   pvalcutoff = 0.05){
+  library(clusterProfiler)
+  library(dplyr)
+  library(stringr)
+  library(org.Hs.eg.db)
+  library(org.Mm.eg.db)
+  library(org.Rn.eg.db)
+  library(ggplot2)
+  library(enrichplot)
+  
+  ## gsea kegg
+  if (method=='GSEA'){
+    
+    kk <- gseKEGG(geneList, organism = orgkegg,pvalueCutoff =pvalcutoff)
+    kk <- setReadable(kk,org,'ENTREZID')
+    
+    ego <- gseGO(
+      geneList     = geneList,  
+      OrgDb        = org, 
+      ont          = ont,  
+      pvalueCutoff = pvalcutoff)
+    ego <- setReadable(ego,org,'ENTREZID')
+    
+    gseares <- list(GO=ego,KEGG=kk)
+    return(gseares)
+  } else if (method=='normal'){
+    egoup <- enrichGO(gene =geneList2[['Up']],
+                      OrgDb=org,
+                      ont = ont,
+                      pvalueCutoff = pvalcutoff,
+                      readable = T)
+    egodown <- enrichGO(gene =geneList2[['Down']],
+                        OrgDb=org,
+                        ont = ont,
+                        pvalueCutoff = pvalcutoff,
+                        readable = T)
+    
+    kkup<-enrichKEGG(gene = geneList2[['Up']],
+                     organism = orgkegg,
+                     keyType = "kegg",          
+                     pvalueCutoff = pvalcutoff)
+    kkdown<-enrichKEGG(gene = geneList2[['Down']],
+                       organism = orgkegg,
+                       keyType = "kegg",          
+                       pvalueCutoff = pvalcutoff)
+    kkup <- setReadable(kkup,org,'ENTREZID')
+    kkdown <- setReadable(kkdown,org,'ENTREZID')
+    
+    normalres=list(GOup=egoup,GOdown=egodown,kkup=kkup,kkdown=kkdown)
+    return(normalres)
+  }
+}
